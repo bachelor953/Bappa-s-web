@@ -8,25 +8,28 @@ const connectDB = require("./config/db");
 const app = express();
 const server = http.createServer(app);
 
+// MIDDLEWARE
 app.use(cors());
-app.use(express.static("public"));
+app.use(express.static("public")); // frontend serve করবে
 app.use(express.json());
 
-// DB connect
+// DB CONNECT
 connectDB();
 
-// routes
+// ROUTES
 app.use("/auth", require("./routes/auth"));
 app.use("/post", require("./routes/post"));
 app.use("/chat", require("./routes/chat"));
 
-// socket
-require("./socket/socket")(server);
-
-app.get("/", (req,res)=>{
+// BACKEND STATUS CHECK
+app.get("/status", (req, res) => {
   res.send("Social App Backend Running");
 });
 
-server.listen(process.env.PORT || 3000, ()=>{
+// SOCKET.IO
+require("./socket/socket")(server);
+
+// SERVER START
+server.listen(process.env.PORT || 3000, () => {
   console.log("Server running");
 });
