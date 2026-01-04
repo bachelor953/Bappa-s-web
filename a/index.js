@@ -10,7 +10,7 @@ const server = http.createServer(app);
 
 // MIDDLEWARE
 app.use(cors());
-app.use(express.static("public")); // frontend serve করবে
+app.use(express.static("docs")); // ✅ public নয়, docs
 app.use(express.json());
 
 // DB CONNECT
