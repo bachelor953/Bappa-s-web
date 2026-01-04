@@ -10,26 +10,26 @@ const server = http.createServer(app);
 
 // MIDDLEWARE
 app.use(cors());
-app.use(express.static("docs")); // ✅ public নয়, docs
 app.use(express.json());
+app.use(express.static("docs")); // frontend ONLY
 
-// DB CONNECT
+// DB
 connectDB();
 
-// ROUTES
+// API ROUTES
 app.use("/auth", require("./routes/auth"));
 app.use("/post", require("./routes/post"));
 app.use("/chat", require("./routes/chat"));
 
-// BACKEND STATUS CHECK
+// BACKEND STATUS (NOT /)
 app.get("/status", (req, res) => {
   res.send("Social App Backend Running");
 });
 
-// SOCKET.IO
+// SOCKET
 require("./socket/socket")(server);
 
-// SERVER START
+// START
 server.listen(process.env.PORT || 3000, () => {
   console.log("Server running");
 });
