@@ -16,14 +16,22 @@ module.exports = function (server) {
     socket.on("addUser", (userId) => {
       onlineUsers[userId] = socket.id;
       console.log("Online users:", onlineUsers);
+
+      // 🔔 broadcast updated online list to ALL clients
+      io.emit("onlineUsers", Object.keys(onlineUsers));
     });
 
-    // 🔹 private message + SAVE TO DB + senderName support
+    // 🔹 frontend explicitly ask for online users
+    socket.on("getOnlineUsers", () => {
+      socket.emit("onlineUsers", Object.keys(onlineUsers));
+    });
+
+    // 🔹 private message + SAVE TO DB + senderName
     socket.on(
       "sendMessage",
       async ({ senderId, senderName, receiverId, text }) => {
         try {
-          // 1️⃣ save message to MongoDB
+          // save message
           const msg = new Message({
             senderId,
             receiverId,
@@ -31,7 +39,7 @@ module.exports = function (server) {
           });
           await msg.save();
 
-          // 2️⃣ send live message to receiver if online
+          // send live message
           const receiverSocket = onlineUsers[receiverId];
           if (receiverSocket) {
             io.to(receiverSocket).emit("getMessage", {
@@ -53,6 +61,9 @@ module.exports = function (server) {
           delete onlineUsers[userId];
         }
       }
+
+      // 🔔 update online list after disconnect
+      io.emit("onlineUsers", Object.keys(onlineUsers));
       console.log("User disconnected");
     });
   });

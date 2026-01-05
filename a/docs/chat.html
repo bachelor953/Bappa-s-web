@@ -38,8 +38,20 @@
   const chat = document.getElementById("chat");
   const msgInput = document.getElementById("msg");
 
+  // 🔹 ONLINE USERS LIST
+  let ONLINE = [];
+
   // register online
   socket.emit("addUser", userId);
+
+  // ask server who is online
+  socket.emit("getOnlineUsers");
+
+  // receive online users list
+  socket.on("onlineUsers", (list) => {
+    ONLINE = list;
+    loadUsers(); // re-render dropdown with status
+  });
 
   // 🔹 LOAD USERS FROM DB
   async function loadUsers() {
@@ -51,7 +63,11 @@
     users.forEach(u => {
       const opt = document.createElement("option");
       opt.value = u._id;
-      opt.textContent = u.name;
+
+      // 🟢 online / ⚪ offline
+      const status = ONLINE.includes(u._id) ? "🟢" : "⚪";
+      opt.textContent = `${status} ${u.name}`;
+
       receiverSelect.appendChild(opt);
     });
 
@@ -81,7 +97,7 @@
     loadHistory(receiverSelect.value);
   };
 
-  // SEND MESSAGE (senderName INCLUDED)
+  // SEND MESSAGE
   function send() {
     const receiverId = receiverSelect.value;
     const text = msgInput.value;
@@ -89,7 +105,7 @@
 
     socket.emit("sendMessage", {
       senderId: userId,
-      senderName: userName,   // ⭐ IMPORTANT
+      senderName: userName,
       receiverId,
       text
     });
@@ -98,7 +114,7 @@
     msgInput.value = "";
   }
 
-  // RECEIVE LIVE MESSAGE (senderName SHOWN)
+  // RECEIVE LIVE MESSAGE
   socket.on("getMessage", (data) => {
     chat.innerHTML += `<p><b>${data.senderName}:</b> ${data.text}</p>`;
   });
