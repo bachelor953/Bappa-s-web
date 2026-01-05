@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Private Chat</title>
+</head>
+<body>
+
+<h3>Private Chat</h3>
+
+<!-- Receiver dropdown (auto filled) -->
+<select id="receiver"></select>
+
+<br><br>
+
+<input id="msg" placeholder="Type message">
+<button onclick="send()">Send</button>
+
+<hr>
+
+<div id="chat"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io("https://bappa-s-web.onrender.com");
+
+  // logged-in userId
+  const userId = localStorage.getItem("userId");
+  if (!userId) {
+    alert("Please login first");
+    location.href = "/";
+  }
+
+  // 🔹 TEMP USER LIST (learning stage)
+  // পরে এটা DB থেকে আসবে
+  const USERS = [
+    { id: "695ae558cede022179643013", name: "Bondhu" },
+    { id: "695ae999cede022179643099", name: "Rahul" }
+  ];
+
+  // নিজের নাম বাদ দিয়ে dropdown বানানো
+  const receiverSelect = document.getElementById("receiver");
+  USERS.filter(u => u.id !== userId).forEach(u => {
+    const opt = document.createElement("option");
+    opt.value = u.id;
+    opt.textContent = u.name;
+    receiverSelect.appendChild(opt);
+  });
+
+  // online register
+  socket.emit("addUser", userId);
+
+  function send() {
+    const receiverId = receiverSelect.value;
+    const text = document.getElementById("msg").value;
+    if (!text) return;
+
+    socket.emit("sendMessage", {
+      senderId: userId,
+      receiverId,
+      text
+    });
+
+    document.getElementById("chat").innerHTML +=
+      `<p><b>You:</b> ${text}</p>`;
+
+    document.getElementById("msg").value = "";
+  }
+
+  // receive private message
+  socket.on("getMessage", (data) => {
+    document.getElementById("chat").innerHTML +=
+      `<p><b>Them:</b> ${data.text}</p>`;
+  });
+</script>
+
+</body>
+</html>

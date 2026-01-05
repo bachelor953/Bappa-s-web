@@ -9,11 +9,27 @@
 <input id="postText" placeholder="What's on your mind?">
 <button onclick="createPost()">Post</button>
 
+<br><br>
+<button onclick="goChat()">💬 Open Personal Chat</button>
+
 <hr>
 
 <h2>Feed</h2>
 <div id="feed"></div>
 
 <script src="app.js"></script>
+<script>
+  // 🔒 login check
+  const userId = localStorage.getItem("userId");
+  if (!userId) {
+    alert("Please login first");
+    location.href = "/";
+  }
+
+  function goChat(){
+    location.href = "chat.html";
+  }
+</script>
+
 </body>
 </html>
