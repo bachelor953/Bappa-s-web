@@ -20,7 +20,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-  const API = "https://bappa-s-web.onrender.com"; // Render URL
+  const API = "https://bappa-s-web.onrender.com"; // local হলে http://localhost:3000
   const socket = io(API);
 
   const userId = localStorage.getItem("userId");
@@ -34,30 +34,57 @@
   // show my name
   document.getElementById("me").innerText = "You: " + userName;
 
+  const receiverSelect = document.getElementById("receiver");
+  const chat = document.getElementById("chat");
+  const msgInput = document.getElementById("msg");
+
   // register online
   socket.emit("addUser", userId);
 
-  // 🔥 LOAD USERS FROM DB
+  // 🔹 LOAD USERS FROM DB
   async function loadUsers() {
     const res = await fetch(API + "/users?me=" + userId);
     const users = await res.json();
 
-    const receiver = document.getElementById("receiver");
-    receiver.innerHTML = "";
+    receiverSelect.innerHTML = "";
 
     users.forEach(u => {
       const opt = document.createElement("option");
       opt.value = u._id;
       opt.textContent = u.name;
-      receiver.appendChild(opt);
+      receiverSelect.appendChild(opt);
+    });
+
+    // load history with first user
+    if (receiverSelect.value) {
+      loadHistory(receiverSelect.value);
+    }
+  }
+
+  // 🔹 LOAD CHAT HISTORY
+  async function loadHistory(receiverId) {
+    const res = await fetch(API + "/chat/" + userId + "/" + receiverId);
+    const msgs = await res.json();
+
+    chat.innerHTML = "";
+    msgs.forEach(m => {
+      if (m.senderId === userId) {
+        chat.innerHTML += `<p><b>You:</b> ${m.text}</p>`;
+      } else {
+        chat.innerHTML += `<p><b>Them:</b> ${m.text}</p>`;
+      }
     });
   }
 
-  loadUsers();
+  // receiver change হলে history reload
+  receiverSelect.onchange = () => {
+    loadHistory(receiverSelect.value);
+  };
 
+  // SEND MESSAGE
   function send() {
-    const receiverId = receiver.value;
-    const text = msg.value;
+    const receiverId = receiverSelect.value;
+    const text = msgInput.value;
     if (!text) return;
 
     socket.emit("sendMessage", {
@@ -67,12 +94,16 @@
     });
 
     chat.innerHTML += `<p><b>You:</b> ${text}</p>`;
-    msg.value = "";
+    msgInput.value = "";
   }
 
+  // RECEIVE LIVE MESSAGE
   socket.on("getMessage", (data) => {
     chat.innerHTML += `<p><b>Them:</b> ${data.text}</p>`;
   });
+
+  // init
+  loadUsers();
 </script>
 
 </body>

@@ -1,41 +1,32 @@
 const router = require("express").Router();
 const Message = require("../models/Message");
 
-// SEND MESSAGE (save to DB)
+// 🔹 save message
 router.post("/", async (req, res) => {
   try {
-    const msg = new Message({
-      senderId: req.body.senderId,
-      receiverId: req.body.receiverId,
-      text: req.body.text
-    });
-
+    const msg = new Message(req.body);
     await msg.save();
     res.json(msg);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (e) {
+    res.status(500).json({ error: "Message save failed" });
   }
 });
 
-// GET CHAT HISTORY BETWEEN TWO USERS
+// 🔹 get chat history between 2 users
 router.get("/:user1/:user2", async (req, res) => {
   try {
-    const messages = await Message.find({
+    const { user1, user2 } = req.params;
+
+    const msgs = await Message.find({
       $or: [
-        {
-          senderId: req.params.user1,
-          receiverId: req.params.user2
-        },
-        {
-          senderId: req.params.user2,
-          receiverId: req.params.user1
-        }
+        { senderId: user1, receiverId: user2 },
+        { senderId: user2, receiverId: user1 }
       ]
     }).sort({ createdAt: 1 });
 
-    res.json(messages);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json(msgs);
+  } catch (e) {
+    res.status(500).json({ error: "History load failed" });
   }
 });
 
