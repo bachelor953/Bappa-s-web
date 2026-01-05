@@ -17,20 +17,23 @@ async function register(){
 
 // LOGIN
 async function login(){
-  const res = await fetch(API+"/auth/login",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
+  const res = await fetch(API + "/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       email: lemail.value,
       password: lpass.value
     })
   });
+
   const data = await res.json();
-  if(data.token){
+
+  if (data.token) {
     localStorage.setItem("token", data.token);
     localStorage.setItem("userId", data.user._id);
+    localStorage.setItem("userName", data.user.name); // ⭐ MISSING LINE
     location.href = "feed.html";
-  }else{
+  } else {
     msg.innerText = "Login failed";
   }
 }

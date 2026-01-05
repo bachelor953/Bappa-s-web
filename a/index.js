@@ -20,6 +20,7 @@ connectDB();
 app.use("/auth", require("./routes/auth"));
 app.use("/post", require("./routes/post"));
 app.use("/chat", require("./routes/chat"));
+app.use("/users", require("./routes/users"));
 
 // BACKEND STATUS (NOT /)
 app.get("/status", (req, res) => {

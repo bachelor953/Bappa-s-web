@@ -5,9 +5,8 @@
 </head>
 <body>
 
-<h3>Private Chat</h3>
+<h3 id="me"></h3>
 
-<!-- Receiver dropdown (auto filled) -->
 <select id="receiver"></select>
 
 <br><br>
@@ -21,37 +20,44 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-  const socket = io("https://bappa-s-web.onrender.com");
+  const API = "https://bappa-s-web.onrender.com"; // Render URL
+  const socket = io(API);
 
-  // logged-in userId
   const userId = localStorage.getItem("userId");
+  const userName = localStorage.getItem("userName");
+
   if (!userId) {
     alert("Please login first");
     location.href = "/";
   }
 
-  // 🔹 TEMP USER LIST (learning stage)
-  // পরে এটা DB থেকে আসবে
-  const USERS = [
-    { id: "695ae558cede022179643013", name: "Bondhu" },
-    { id: "695ae999cede022179643099", name: "Rahul" }
-  ];
+  // show my name
+  document.getElementById("me").innerText = "You: " + userName;
 
-  // নিজের নাম বাদ দিয়ে dropdown বানানো
-  const receiverSelect = document.getElementById("receiver");
-  USERS.filter(u => u.id !== userId).forEach(u => {
-    const opt = document.createElement("option");
-    opt.value = u.id;
-    opt.textContent = u.name;
-    receiverSelect.appendChild(opt);
-  });
-
-  // online register
+  // register online
   socket.emit("addUser", userId);
 
+  // 🔥 LOAD USERS FROM DB
+  async function loadUsers() {
+    const res = await fetch(API + "/users?me=" + userId);
+    const users = await res.json();
+
+    const receiver = document.getElementById("receiver");
+    receiver.innerHTML = "";
+
+    users.forEach(u => {
+      const opt = document.createElement("option");
+      opt.value = u._id;
+      opt.textContent = u.name;
+      receiver.appendChild(opt);
+    });
+  }
+
+  loadUsers();
+
   function send() {
-    const receiverId = receiverSelect.value;
-    const text = document.getElementById("msg").value;
+    const receiverId = receiver.value;
+    const text = msg.value;
     if (!text) return;
 
     socket.emit("sendMessage", {
@@ -60,16 +66,12 @@
       text
     });
 
-    document.getElementById("chat").innerHTML +=
-      `<p><b>You:</b> ${text}</p>`;
-
-    document.getElementById("msg").value = "";
+    chat.innerHTML += `<p><b>You:</b> ${text}</p>`;
+    msg.value = "";
   }
 
-  // receive private message
   socket.on("getMessage", (data) => {
-    document.getElementById("chat").innerHTML +=
-      `<p><b>Them:</b> ${data.text}</p>`;
+    chat.innerHTML += `<p><b>Them:</b> ${data.text}</p>`;
   });
 </script>
 
