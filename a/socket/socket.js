@@ -18,29 +18,33 @@ module.exports = function (server) {
       console.log("Online users:", onlineUsers);
     });
 
-    // 🔹 private message + SAVE TO DB
-    socket.on("sendMessage", async ({ senderId, receiverId, text }) => {
-      try {
-        // 1️⃣ save message to MongoDB
-        const msg = new Message({
-          senderId,
-          receiverId,
-          text
-        });
-        await msg.save();
-
-        // 2️⃣ send live message to receiver if online
-        const receiverSocket = onlineUsers[receiverId];
-        if (receiverSocket) {
-          io.to(receiverSocket).emit("getMessage", {
+    // 🔹 private message + SAVE TO DB + senderName support
+    socket.on(
+      "sendMessage",
+      async ({ senderId, senderName, receiverId, text }) => {
+        try {
+          // 1️⃣ save message to MongoDB
+          const msg = new Message({
             senderId,
+            receiverId,
             text
           });
+          await msg.save();
+
+          // 2️⃣ send live message to receiver if online
+          const receiverSocket = onlineUsers[receiverId];
+          if (receiverSocket) {
+            io.to(receiverSocket).emit("getMessage", {
+              senderId,
+              senderName,
+              text
+            });
+          }
+        } catch (err) {
+          console.log("Message send error:", err.message);
         }
-      } catch (err) {
-        console.log("Message send error:", err.message);
       }
-    });
+    );
 
     // 🔹 handle disconnect
     socket.on("disconnect", () => {

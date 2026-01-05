@@ -26,7 +26,7 @@
   const userId = localStorage.getItem("userId");
   const userName = localStorage.getItem("userName");
 
-  if (!userId) {
+  if (!userId || !userName) {
     alert("Please login first");
     location.href = "/";
   }
@@ -81,7 +81,7 @@
     loadHistory(receiverSelect.value);
   };
 
-  // SEND MESSAGE
+  // SEND MESSAGE (senderName INCLUDED)
   function send() {
     const receiverId = receiverSelect.value;
     const text = msgInput.value;
@@ -89,6 +89,7 @@
 
     socket.emit("sendMessage", {
       senderId: userId,
+      senderName: userName,   // ⭐ IMPORTANT
       receiverId,
       text
     });
@@ -97,9 +98,9 @@
     msgInput.value = "";
   }
 
-  // RECEIVE LIVE MESSAGE
+  // RECEIVE LIVE MESSAGE (senderName SHOWN)
   socket.on("getMessage", (data) => {
-    chat.innerHTML += `<p><b>Them:</b> ${data.text}</p>`;
+    chat.innerHTML += `<p><b>${data.senderName}:</b> ${data.text}</p>`;
   });
 
   // init
