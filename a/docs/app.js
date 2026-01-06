@@ -64,3 +64,13 @@ async function loadFeed(){
 if(typeof feed !== "undefined"){
   loadFeed();
 }
+
+function logout() {
+  // clear session
+  localStorage.removeItem("token");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("userName");
+
+  // redirect to login
+  location.href = "/";
+}

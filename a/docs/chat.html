@@ -6,6 +6,8 @@
 <body>
 
 <h3 id="me"></h3>
+<button onclick="logout()">🚪 Logout</button>
+<hr>
 
 <select id="receiver"></select>
 
@@ -150,6 +152,12 @@
 
   // init
   loadUsers();
+
+  function logout() {
+    socket.disconnect(); // 🔌 socket off
+    localStorage.clear();
+    location.href = "/";
+  }
 </script>
 
 </body>
