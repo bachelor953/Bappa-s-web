@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const Message = require("../models/Message");
 
-// 🔹 save message
+// 🔹 save message (REST fallback, socket ছাড়াও)
 router.post("/", async (req, res) => {
   try {
     const msg = new Message(req.body);
@@ -12,11 +12,29 @@ router.post("/", async (req, res) => {
   }
 });
 
-// 🔹 get chat history between 2 users
+// 🔹 get chat history between 2 users + MARK SEEN
 router.get("/:user1/:user2", async (req, res) => {
   try {
     const { user1, user2 } = req.params;
 
+    // ============================
+    // ⭐ STEP 3: MARK AS SEEN
+    // ============================
+    // user1 = আমি (chat খুলেছি)
+    // user2 = সে (যে message পাঠিয়েছে)
+    await Message.updateMany(
+      {
+        senderId: user2,
+        receiverId: user1,
+        status: "delivered"
+      },
+      {
+        $set: { status: "seen" }
+      }
+    );
+    // ============================
+
+    // 🔹 now load full chat history
     const msgs = await Message.find({
       $or: [
         { senderId: user1, receiverId: user2 },

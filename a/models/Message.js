@@ -4,6 +4,7 @@ const MessageSchema = new mongoose.Schema({
   senderId: String,
   receiverId: String,
   text: String,
+  status: { type: String, default: "sent" }
   createdAt: {
     type: Date,
     default: Date.now

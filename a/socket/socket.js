@@ -32,11 +32,12 @@ module.exports = function (server) {
       async ({ senderId, senderName, receiverId, text }) => {
         try {
           // save message
-          const msg = new Message({
-            senderId,
-            receiverId,
-            text
-          });
+         const msg = new Message({
+           senderId,
+           receiverId,
+           text,
+           status: "delivered"
+         }); 
           await msg.save();
 
           // send live message

@@ -85,7 +85,11 @@
     chat.innerHTML = "";
     msgs.forEach(m => {
       if (m.senderId === userId) {
-        chat.innerHTML += `<p><b>You:</b> ${m.text}</p>`;
+        const tick =
+  m.status === "seen" ? "✔✔" :
+  m.status === "delivered" ? "✔" : "";
+
+chat.innerHTML += `<p><b>You:</b> ${m.text} ${tick}</p>`;
       } else {
         chat.innerHTML += `<p><b>Them:</b> ${m.text}</p>`;
       }
