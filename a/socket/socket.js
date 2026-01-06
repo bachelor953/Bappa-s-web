@@ -25,6 +25,20 @@ module.exports = function (server) {
     socket.on("getOnlineUsers", () => {
       socket.emit("onlineUsers", Object.keys(onlineUsers));
     });
+    // ✍️ typing indicator
+    socket.on("typing", ({ senderName, receiverId }) => {
+      const receiverSocket = onlineUsers[receiverId];
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("typing", { senderName });
+      }
+    });
+
+    socket.on("stopTyping", ({ receiverId }) => {
+      const receiverSocket = onlineUsers[receiverId];
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("stopTyping");
+      }
+    });
 
     // 🔹 private message + SAVE TO DB + senderName
     socket.on(

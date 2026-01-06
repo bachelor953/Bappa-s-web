@@ -17,6 +17,7 @@
 <hr>
 
 <div id="chat"></div>
+<p id="typing" style="font-style:italic;color:gray;"></p>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -31,29 +32,43 @@
     location.href = "/";
   }
 
-  // show my name
   document.getElementById("me").innerText = "You: " + userName;
 
   const receiverSelect = document.getElementById("receiver");
   const chat = document.getElementById("chat");
   const msgInput = document.getElementById("msg");
+  const typingEl = document.getElementById("typing");
 
-  // 🔹 ONLINE USERS LIST
+  let typingTimeout;
   let ONLINE = [];
 
   // register online
   socket.emit("addUser", userId);
-
-  // ask server who is online
   socket.emit("getOnlineUsers");
 
-  // receive online users list
-  socket.on("onlineUsers", (list) => {
-    ONLINE = list;
-    loadUsers(); // re-render dropdown with status
+  // 🔹 TYPING SEND
+  msgInput.addEventListener("input", () => {
+    const receiverId = receiverSelect.value;
+    if (!receiverId) return;
+
+    socket.emit("typing", {
+      senderName: userName,
+      receiverId
+    });
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      socket.emit("stopTyping", { receiverId });
+    }, 1000);
   });
 
-  // 🔹 LOAD USERS FROM DB
+  // 🔹 RECEIVE ONLINE USERS
+  socket.on("onlineUsers", (list) => {
+    ONLINE = list;
+    loadUsers();
+  });
+
+  // 🔹 LOAD USERS
   async function loadUsers() {
     const res = await fetch(API + "/users?me=" + userId);
     const users = await res.json();
@@ -63,15 +78,11 @@
     users.forEach(u => {
       const opt = document.createElement("option");
       opt.value = u._id;
-
-      // 🟢 online / ⚪ offline
       const status = ONLINE.includes(u._id) ? "🟢" : "⚪";
       opt.textContent = `${status} ${u.name}`;
-
       receiverSelect.appendChild(opt);
     });
 
-    // load history with first user
     if (receiverSelect.value) {
       loadHistory(receiverSelect.value);
     }
@@ -79,6 +90,8 @@
 
   // 🔹 LOAD CHAT HISTORY
   async function loadHistory(receiverId) {
+    typingEl.innerText = ""; // ⭐ clear typing on switch
+
     const res = await fetch(API + "/chat/" + userId + "/" + receiverId);
     const msgs = await res.json();
 
@@ -86,22 +99,20 @@
     msgs.forEach(m => {
       if (m.senderId === userId) {
         const tick =
-  m.status === "seen" ? "✔✔" :
-  m.status === "delivered" ? "✔" : "";
-
-chat.innerHTML += `<p><b>You:</b> ${m.text} ${tick}</p>`;
+          m.status === "seen" ? "✔✔" :
+          m.status === "delivered" ? "✔" : "";
+        chat.innerHTML += `<p><b>You:</b> ${m.text} ${tick}</p>`;
       } else {
         chat.innerHTML += `<p><b>Them:</b> ${m.text}</p>`;
       }
     });
   }
 
-  // receiver change হলে history reload
   receiverSelect.onchange = () => {
     loadHistory(receiverSelect.value);
   };
 
-  // SEND MESSAGE
+  // 🔹 SEND MESSAGE
   function send() {
     const receiverId = receiverSelect.value;
     const text = msgInput.value;
@@ -114,13 +125,27 @@ chat.innerHTML += `<p><b>You:</b> ${m.text} ${tick}</p>`;
       text
     });
 
+    // ⭐ stop typing immediately after send
+    socket.emit("stopTyping", { receiverId });
+    typingEl.innerText = "";
+
     chat.innerHTML += `<p><b>You:</b> ${text}</p>`;
     msgInput.value = "";
   }
 
-  // RECEIVE LIVE MESSAGE
+  // 🔹 RECEIVE MESSAGE
   socket.on("getMessage", (data) => {
+    typingEl.innerText = ""; // ⭐ clear typing on receive
     chat.innerHTML += `<p><b>${data.senderName}:</b> ${data.text}</p>`;
+  });
+
+  // 🔹 RECEIVE TYPING
+  socket.on("typing", (data) => {
+    typingEl.innerText = `${data.senderName} is typing...`;
+  });
+
+  socket.on("stopTyping", () => {
+    typingEl.innerText = "";
   });
 
   // init
