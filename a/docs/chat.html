@@ -4,6 +4,7 @@
   <title>Private Chat</title>
 </head>
 <body>
+
 <button onclick="location.href='wallet.html'">💳 Recharge Wallet</button>
 
 <h3 id="me"></h3>
@@ -30,7 +31,7 @@
 <div id="chat"></div>
 
 <audio id="remoteAudio" autoplay></audio>
-<audio id="ringtone" loop preload="auto">
+<audio id="ringtone" loop>
   <source src="ringtone.mp3" type="audio/mpeg">
 </audio>
 
@@ -44,7 +45,6 @@ const RATE_PER_MIN = 5;
 
 /* ================= BASIC ================= */
 const socket = io(API);
-
 const userId = localStorage.getItem("userId");
 const userName = localStorage.getItem("userName");
 
@@ -70,195 +70,178 @@ const walletEl = document.getElementById("wallet");
 let CALL_STATE = "IDLE";
 let callStartTime = null;
 let callTimer = null;
+let pc = null;
+let localStream = null;
 
 /* ================= WALLET ================= */
 async function loadWallet(){
-  const res = await fetch(API + "/users/wallet/" + userId);
-  const data = await res.json();
-  walletEl.innerText = "💰 Wallet: ₹" + data.wallet;
+  const r = await fetch(API + "/users/wallet/" + userId);
+  const d = await r.json();
+  walletEl.innerText = "💰 Wallet: ₹" + d.wallet;
 }
 
-/* ================= ONLINE USERS ================= */
+/* ================= USERS ================= */
 let ONLINE = [];
-
 socket.emit("addUser", userId);
 socket.emit("getOnlineUsers");
 
-socket.on("onlineUsers", list => {
+socket.on("onlineUsers", list=>{
   ONLINE = list;
   loadUsers();
 });
 
 async function loadUsers(){
-  const res = await fetch(API + "/users?me=" + userId);
-  const users = await res.json();
-
+  const r = await fetch(API + "/users?me=" + userId);
+  const users = await r.json();
   receiverSelect.innerHTML = "";
-  users.forEach(u=>{
-    const opt = document.createElement("option");
-    opt.value = u._id;
-    opt.textContent = `${ONLINE.includes(u._id) ? "🟢" : "⚪"} ${u.name}`;
-    receiverSelect.appendChild(opt);
-  });
 
-  if(receiverSelect.value) loadHistory(receiverSelect.value);
+  users.forEach(u=>{
+    const o = document.createElement("option");
+    o.value = u._id;
+    o.textContent = `${ONLINE.includes(u._id) ? "🟢" : "⚪"} ${u.name}`;
+    receiverSelect.appendChild(o);
+  });
 }
 
 /* ================= CHAT ================= */
-async function loadHistory(rid){
+async function loadHistory(id){
   chat.innerHTML = "";
-  typingEl.innerText = "";
-
-  const res = await fetch(API + "/chat/" + userId + "/" + rid);
-  const msgs = await res.json();
+  const r = await fetch(API + "/chat/" + userId + "/" + id);
+  const msgs = await r.json();
 
   msgs.forEach(m=>{
-    chat.innerHTML +=
-      m.senderId === userId
-        ? `<p><b>You:</b> ${m.text}</p>`
-        : `<p><b>Them:</b> ${m.text}</p>`;
+    chat.innerHTML += m.senderId === userId
+      ? `<p><b>You:</b> ${m.text}</p>`
+      : `<p><b>Them:</b> ${m.text}</p>`;
   });
 }
 
-receiverSelect.onchange = ()=> loadHistory(receiverSelect.value);
+receiverSelect.onchange = ()=>loadHistory(receiverSelect.value);
 
 function send(){
-  const text = msgInput.value;
-  const rid = receiverSelect.value;
-  if(!text) return;
-
+  if(!msgInput.value) return;
   socket.emit("sendMessage",{
     senderId:userId,
     senderName:userName,
-    receiverId:rid,
-    text
+    receiverId:receiverSelect.value,
+    text:msgInput.value
   });
-
-  chat.innerHTML += `<p><b>You:</b> ${text}</p>`;
+  chat.innerHTML += `<p><b>You:</b> ${msgInput.value}</p>`;
   msgInput.value="";
 }
 
 /* ================= TYPING ================= */
-let typingTimeout;
+let tmo;
 msgInput.addEventListener("input",()=>{
-  const rid = receiverSelect.value;
-  if(!rid) return;
-
-  socket.emit("typing",{ senderName:userName, receiverId:rid });
-
-  clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(()=>{
-    socket.emit("stopTyping",{ receiverId:rid });
-  },1000);
+  socket.emit("typing",{senderName:userName,receiverId:receiverSelect.value});
+  clearTimeout(tmo);
+  tmo=setTimeout(()=>socket.emit("stopTyping",{receiverId:receiverSelect.value}),1000);
 });
-
-socket.on("typing",d=>{
-  typingEl.innerText = `${d.senderName} is typing...`;
-});
-socket.on("stopTyping",()=> typingEl.innerText="");
+socket.on("typing",d=>typingEl.innerText=d.senderName+" is typing...");
+socket.on("stopTyping",()=>typingEl.innerText="");
 
 /* ================= TIMER ================= */
 function startTimer(){
   callStartTime = Date.now();
   callTimer = setInterval(()=>{
     const s = Math.floor((Date.now()-callStartTime)/1000);
-    const m = Math.floor(s/60);
-    const sec = s%60;
-    callTimerEl.innerText = `⏱ ${m}:${sec.toString().padStart(2,"0")}`;
+    callTimerEl.innerText = `⏱ ${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
   },1000);
 }
-
 function stopTimer(){
-  if(callTimer) clearInterval(callTimer);
-  callTimer = null;
+  clearInterval(callTimer);
+  callTimer=null;
+  callTimerEl.innerText="";
+}
+
+/* ================= WEBRTC ================= */
+async function initRTC(){
+  pc = new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  pc.onicecandidate=e=>{
+    if(e.candidate) socket.emit("webrtc-ice",{to:receiverSelect.value,candidate:e.candidate});
+  };
+  pc.ontrack=e=>remoteAudio.srcObject=e.streams[0];
+  localStream = await navigator.mediaDevices.getUserMedia({audio:true});
+  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
 }
 
 /* ================= CALL ================= */
 async function startCall(){
-  const res = await fetch(API + "/users/wallet/" + userId);
-  const data = await res.json();
-
-  if(data.wallet < RATE_PER_MIN){
-    alert("❌ Insufficient balance");
-    return;
-  }
+  const r = await fetch(API+"/users/wallet/"+userId);
+  const d = await r.json();
+  if(d.wallet < RATE_PER_MIN) return alert("❌ Insufficient balance");
 
   CALL_STATE="CALLING";
   callStatus.innerText="Calling...";
-
-  socket.emit("callUser",{
-    callerId:userId,
-    callerName:userName,
-    receiverId:receiverSelect.value
-  });
+  socket.emit("callUser",{callerId:userId,callerName:userName,receiverId:receiverSelect.value});
 }
 
 socket.on("incomingCall",async d=>{
-  CALL_STATE="RINGING";
   ringtone.play();
-
   const ok = confirm(`📞 ${d.callerName} is calling`);
   ringtone.pause(); ringtone.currentTime=0;
-
-  if(!ok){
-    socket.emit("rejectCall",{ callerId:d.callerId });
-    CALL_STATE="IDLE";
-    return;
-  }
-
-  socket.emit("acceptCall",{ callerId:d.callerId });
+  if(!ok) return socket.emit("rejectCall",{callerId:d.callerId});
+  await initRTC();
+  socket.emit("acceptCall",{callerId:d.callerId});
   CALL_STATE="CONNECTED";
   callStatus.innerText="Call connected";
   startTimer();
 });
 
-socket.on("callAccepted",()=>{
+socket.on("callAccepted",async ()=>{
+  await initRTC();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit("webrtc-offer",{to:receiverSelect.value,offer});
   CALL_STATE="CONNECTED";
   callStatus.innerText="Call connected";
   startTimer();
 });
 
-/* ================= END CALL + BILLING ================= */
+socket.on("webrtc-offer",async offer=>{
+  await initRTC();
+  await pc.setRemoteDescription(offer);
+  const ans = await pc.createAnswer();
+  await pc.setLocalDescription(ans);
+  socket.emit("webrtc-answer",{to:receiverSelect.value,answer:ans});
+});
+socket.on("webrtc-answer",a=>pc.setRemoteDescription(a));
+socket.on("webrtc-ice",c=>c&&pc.addIceCandidate(c));
+
+/* ================= END CALL ================= */
 function endCall(){
   if(!callStartTime) return;
 
-  const durationMs = Date.now() - callStartTime;
-  const minutes = Math.ceil(durationMs / 60000);
-  const cost = minutes * RATE_PER_MIN;
+  const mins = Math.ceil((Date.now()-callStartTime)/60000);
+  const cost = mins*RATE_PER_MIN;
 
-  fetch(API + "/users/wallet/deduct",{
+  fetch(API+"/users/wallet/deduct",{
     method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({ userId, amount:cost })
-  })
-  .then(r=>r.json())
-  .then(d=>{
-    callCostEl.innerText = `Debited ₹${cost} (${minutes} min × ₹5)`;
-    loadWallet();
-  });
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({userId,amount:cost})
+  }).then(()=>loadWallet());
 
   stopTimer();
-  callStartTime=null;
-  CALL_STATE="IDLE";
+  callCostEl.innerText=`Debited ₹${cost}`;
   callStatus.innerText="Call ended";
+  CALL_STATE="IDLE";
 
-  socket.emit("endCall",{ otherUserId:receiverSelect.value });
+  if(pc){pc.close();pc=null;}
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+
+  socket.emit("endCall",{otherUserId:receiverSelect.value});
 }
 
-socket.on("callEnded",()=>{
-  stopTimer();
-  callStatus.innerText="Call ended";
-});
+socket.on("callEnded",endCall);
 
 /* ================= LOGOUT ================= */
 function logout(){
-  ringtone.pause(); ringtone.currentTime=0;
+  endCall();
   socket.disconnect();
   localStorage.clear();
   location.href="/";
 }
 
-/* ================= INIT ================= */
 loadUsers();
 loadWallet();
 </script>
