@@ -1,21 +1,26 @@
 const API = "https://bappa-s-web.onrender.com";
 
-// REGISTER
+/* =====================
+   REGISTER
+===================== */
 async function register(){
-  const res = await fetch(API+"/auth/register",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
+  const res = await fetch(API + "/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       name: rname.value,
       email: remail.value,
       password: rpass.value
     })
   });
+
   const data = await res.json();
   msg.innerText = data.msg || data.error;
 }
 
-// LOGIN
+/* =====================
+   LOGIN
+===================== */
 async function login(){
   const res = await fetch(API + "/auth/login", {
     method: "POST",
@@ -31,46 +36,56 @@ async function login(){
   if (data.token) {
     localStorage.setItem("token", data.token);
     localStorage.setItem("userId", data.user._id);
-    localStorage.setItem("userName", data.user.name); // ⭐ MISSING LINE
+    localStorage.setItem("userName", data.user.name);
+
     location.href = "feed.html";
   } else {
     msg.innerText = "Login failed";
   }
 }
 
-// CREATE POST
+/* =====================
+   CREATE POST
+===================== */
 async function createPost(){
-  await fetch(API+"/post",{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
+  await fetch(API + "/post", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       userId: localStorage.getItem("userId"),
       text: postText.value
     })
   });
+
   loadFeed();
 }
 
-// LOAD FEED
+/* =====================
+   LOAD FEED
+===================== */
 async function loadFeed(){
-  const res = await fetch(API+"/post");
+  const res = await fetch(API + "/post");
   const posts = await res.json();
+
   feed.innerHTML = "";
-  posts.forEach(p=>{
+  posts.forEach(p => {
     feed.innerHTML += `<p>${p.text}</p><hr>`;
   });
 }
 
-if(typeof feed !== "undefined"){
+/* =====================
+   AUTO LOAD FEED
+===================== */
+if (typeof feed !== "undefined") {
   loadFeed();
 }
 
-function logout() {
-  // clear session
+/* =====================
+   LOGOUT
+===================== */
+function logout(){
   localStorage.removeItem("token");
   localStorage.removeItem("userId");
   localStorage.removeItem("userName");
-
-  // redirect to login
   location.href = "/";
 }

@@ -14,6 +14,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  wallet: {
+    type: Number,
+    default: 50
+  },
   avatar: {
     type: String,
     default: ""

@@ -6,10 +6,12 @@
 <body>
 
 <h3 id="me"></h3>
+<p id="wallet">💰 Wallet: --</p>
 <button onclick="logout()">🚪 Logout</button>
 <hr>
 
-<select id="receiver"></select><br><br>
+<select id="receiver"></select>
+<br><br>
 
 <input id="msg" placeholder="Type message">
 <button onclick="send()">Send</button>
@@ -28,7 +30,7 @@
 <div id="chat"></div>
 
 <audio id="remoteAudio" autoplay></audio>
-<audio id="ringtone" loop>
+<audio id="ringtone" loop preload="auto">
   <source src="ringtone.mp3" type="audio/mpeg">
 </audio>
 
@@ -36,8 +38,11 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-/* ================= BASIC ================= */
+/* ================= CONFIG ================= */
 const API = "https://bappa-s-web.onrender.com";
+const RATE_PER_MIN = 5;
+
+/* ================= BASIC ================= */
 const socket = io(API);
 
 const userId = localStorage.getItem("userId");
@@ -59,9 +64,18 @@ const callTimerEl = document.getElementById("callTimer");
 const callCostEl = document.getElementById("callCost");
 const remoteAudio = document.getElementById("remoteAudio");
 const ringtone = document.getElementById("ringtone");
+const walletEl = document.getElementById("wallet");
 
-/* ================= ONLINE ================= */
+/* ================= WALLET ================= */
+async function loadWallet(){
+  const res = await fetch(API + "/users/wallet/" + userId);
+  const data = await res.json();
+  walletEl.innerText = "💰 Wallet: ₹" + data.wallet;
+}
+
+/* ================= ONLINE USERS ================= */
 let ONLINE = [];
+
 socket.emit("addUser", userId);
 socket.emit("getOnlineUsers");
 
@@ -73,8 +87,8 @@ socket.on("onlineUsers", list => {
 async function loadUsers(){
   const res = await fetch(API + "/users?me=" + userId);
   const users = await res.json();
-  receiverSelect.innerHTML = "";
 
+  receiverSelect.innerHTML = "";
   users.forEach(u=>{
     const opt = document.createElement("option");
     opt.value = u._id;
@@ -89,8 +103,10 @@ async function loadUsers(){
 async function loadHistory(rid){
   chat.innerHTML = "";
   typingEl.innerText = "";
+
   const res = await fetch(API + "/chat/" + userId + "/" + rid);
   const msgs = await res.json();
+
   msgs.forEach(m=>{
     chat.innerHTML += m.senderId === userId
       ? `<p><b>You:</b> ${m.text}</p>`
@@ -120,14 +136,19 @@ function send(){
 let typingTimeout;
 msgInput.addEventListener("input",()=>{
   const rid = receiverSelect.value;
+  if(!rid) return;
+
   socket.emit("typing",{ senderName:userName, receiverId:rid });
+
   clearTimeout(typingTimeout);
   typingTimeout = setTimeout(()=>{
     socket.emit("stopTyping",{ receiverId:rid });
   },1000);
 });
 
-socket.on("typing",d=> typingEl.innerText=`${d.senderName} is typing...`);
+socket.on("typing",d=>{
+  typingEl.innerText = `${d.senderName} is typing...`;
+});
 socket.on("stopTyping",()=> typingEl.innerText="");
 
 /* ================= WEBRTC ================= */
@@ -143,32 +164,46 @@ async function initWebRTC(){
     }
   };
 
-  pc.ontrack = e=> remoteAudio.srcObject = e.streams[0];
+  pc.ontrack = e=>{
+    remoteAudio.srcObject = e.streams[0];
+  };
 
   localStream = await navigator.mediaDevices.getUserMedia({audio:true});
   localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
 }
 
-/* ================= CALL + BILLING ================= */
-const RATE = 5;
+/* ================= CALL + TIMER ================= */
 let callStartTime = null;
-let timerInt = null;
+let callTimer = null;
 
 function startTimer(){
   callStartTime = Date.now();
-  timerInt = setInterval(()=>{
+  stopTimer();
+
+  callTimer = setInterval(()=>{
     const s = Math.floor((Date.now()-callStartTime)/1000);
-    callTimerEl.innerText = `⏱ ${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`;
+    const m = Math.floor(s/60);
+    const sec = s%60;
+    callTimerEl.innerText = `⏱ ${m}:${sec.toString().padStart(2,"0")}`;
   },1000);
 }
 
 function stopTimer(){
-  clearInterval(timerInt);
-  timerInt=null;
+  if(callTimer) clearInterval(callTimer);
+  callTimer = null;
 }
 
+/* ================= CALL ================= */
 async function startCall(){
-  callStatus.innerText="Calling...";
+  const res = await fetch(API + "/users/wallet/" + userId);
+  const data = await res.json();
+
+  if(data.wallet < RATE_PER_MIN){
+    alert("❌ Insufficient balance");
+    return;
+  }
+
+  callStatus.innerText = "Calling...";
   socket.emit("callUser",{
     callerId:userId,
     callerName:userName,
@@ -178,6 +213,7 @@ async function startCall(){
 
 socket.on("incomingCall",async d=>{
   ringtone.play();
+
   const ok = confirm(`📞 ${d.callerName} is calling`);
   ringtone.pause(); ringtone.currentTime=0;
 
@@ -211,17 +247,32 @@ socket.on("webrtc-offer",async offer=>{
 socket.on("webrtc-answer",a=> pc.setRemoteDescription(a));
 socket.on("webrtc-ice",c=> c && pc.addIceCandidate(c));
 
-function endCall(){
+/* ================= END CALL + BILLING ================= */
+async function endCall(){
+  if(callStartTime){
+    const durationMs = Date.now()-callStartTime;
+    const minutes = Math.ceil(durationMs/60000);
+    const cost = minutes * RATE_PER_MIN;
+
+    callCostEl.innerText = `💸 Debited ₹${cost}`;
+
+    await fetch(API + "/users/wallet/deduct",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ userId, amount: cost })
+    });
+
+    loadWallet();
+  }
+
   stopTimer();
-
-  const mins = Math.ceil((Date.now()-callStartTime)/60000);
-  const cost = mins * RATE;
-  callCostEl.innerText = `💸 Debited ₹${cost} (${mins} min × ₹${RATE})`;
-
-  socket.emit("endCall",{ otherUserId:receiverSelect.value });
+  callStatus.innerText="Call ended";
 
   if(pc) pc.close();
   if(localStream) localStream.getTracks().forEach(t=>t.stop());
+  pc=null; localStream=null;
+
+  socket.emit("endCall",{ otherUserId:receiverSelect.value });
 }
 
 socket.on("callEnded",()=>{
@@ -231,12 +282,15 @@ socket.on("callEnded",()=>{
 
 /* ================= LOGOUT ================= */
 function logout(){
+  ringtone.pause(); ringtone.currentTime=0;
   socket.disconnect();
   localStorage.clear();
   location.href="/";
 }
 
+/* ================= INIT ================= */
 loadUsers();
+loadWallet();
 </script>
 </body>
 </html>

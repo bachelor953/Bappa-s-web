@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Wallet Recharge</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .box { max-width: 400px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
+    button { padding: 10px; width: 100%; margin-top: 10px; }
+    input { width: 100%; padding: 10px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <h2>💰 Wallet</h2>
+
+  <p><b>Balance:</b> ₹<span id="balance">0</span></p>
+
+  <hr>
+
+  <h3>Recharge</h3>
+  <input type="number" id="amount" placeholder="Enter amount (₹)">
+  <button onclick="recharge()">➕ Recharge Wallet</button>
+
+  <p id="msg" style="color:green;"></p>
+
+  <hr>
+  <button onclick="goBack()">⬅ Back</button>
+</div>
+
+<script>
+const API = "https://bappa-s-web.onrender.com";
+const userId = localStorage.getItem("userId");
+
+if (!userId) {
+  alert("Login required");
+  location.href = "/";
+}
+
+// 🔹 Load wallet balance
+async function loadWallet() {
+  const res = await fetch(API + "/users/wallet/" + userId);
+  const data = await res.json();
+  document.getElementById("balance").innerText = data.wallet;
+}
+
+loadWallet();
+
+// 🔹 Recharge wallet (DEMO)
+async function recharge() {
+  const amt = Number(document.getElementById("amount").value);
+  if (!amt || amt <= 0) return alert("Enter valid amount");
+
+  // ⚠️ DEMO: direct add (real app = payment gateway)
+  const res = await fetch(API + "/users/wallet/deduct", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId,
+      amount: -amt   // 👈 negative means ADD
+    })
+  });
+
+  const data = await res.json();
+  if (data.error) {
+    alert(data.error);
+  } else {
+    document.getElementById("msg").innerText = "Recharge successful!";
+    document.getElementById("amount").value = "";
+    loadWallet();
+  }
+}
+
+function goBack(){
+  location.href = "feed.html";
+}
+</script>
+
+</body>
+</html>
