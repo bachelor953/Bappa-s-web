@@ -1,4 +1,4 @@
-const API = "http://localhost:3000";
+const API = "https://bappa-s-web.onrender.com";
 
 // REGISTER
 async function register(){
