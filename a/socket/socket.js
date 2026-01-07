@@ -83,6 +83,24 @@ module.exports = function (server) {
         io.to(otherSocket).emit("callEnded");
       }
     });
+
+    // =========================
+    // 🔁 WEBRTC SIGNALING
+    // =========================
+    socket.on("webrtc-offer", ({ to, offer }) => {
+      const s = onlineUsers[to];
+      if (s) io.to(s).emit("webrtc-offer", offer);
+    });
+
+    socket.on("webrtc-answer", ({ to, answer }) => {
+      const s = onlineUsers[to];
+      if (s) io.to(s).emit("webrtc-answer", answer);
+     });
+
+    socket.on("webrtc-ice", ({ to, candidate }) => {
+      const s = onlineUsers[to];
+      if (s) io.to(s).emit("webrtc-ice", candidate);
+    });
     // =========================
     // 💬 SEND MESSAGE (FIXED)
     // =========================
