@@ -3,7 +3,7 @@ const API = "https://bappa-s-web.onrender.com";
 /* =====================
    REGISTER
 ===================== */
-async function register(){
+async function register() {
   const res = await fetch(API + "/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -21,7 +21,7 @@ async function register(){
 /* =====================
    LOGIN
 ===================== */
-async function login(){
+async function login() {
   const res = await fetch(API + "/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -47,7 +47,7 @@ async function login(){
 /* =====================
    CREATE POST
 ===================== */
-async function createPost(){
+async function createPost() {
   await fetch(API + "/post", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -63,9 +63,11 @@ async function createPost(){
 /* =====================
    LOAD FEED
 ===================== */
-async function loadFeed(){
+async function loadFeed() {
   const res = await fetch(API + "/post");
   const posts = await res.json();
+
+  if (!feed) return;
 
   feed.innerHTML = "";
   posts.forEach(p => {
@@ -74,16 +76,35 @@ async function loadFeed(){
 }
 
 /* =====================
-   AUTO LOAD FEED
+   LOAD WALLET
 ===================== */
-if (typeof feed !== "undefined") {
-  loadFeed();
+async function loadWallet() {
+  const userId = localStorage.getItem("userId");
+  if (!userId) return;
+
+  const res = await fetch(API + "/users/wallet/" + userId);
+  const data = await res.json();
+
+  const walletEl = document.getElementById("wallet");
+  if (walletEl) {
+    walletEl.innerText = "💰 Wallet: ₹" + data.wallet;
+  }
 }
+
+/* =====================
+   AUTO LOAD ON PAGE
+===================== */
+window.onload = () => {
+  if (typeof feed !== "undefined") {
+    loadFeed();
+  }
+  loadWallet();
+};
 
 /* =====================
    LOGOUT
 ===================== */
-function logout(){
+function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("userId");
   localStorage.removeItem("userName");

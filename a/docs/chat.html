@@ -4,14 +4,14 @@
   <title>Private Chat</title>
 </head>
 <body>
+<button onclick="location.href='wallet.html'">💳 Recharge Wallet</button>
 
 <h3 id="me"></h3>
 <p id="wallet">💰 Wallet: --</p>
 <button onclick="logout()">🚪 Logout</button>
 <hr>
 
-<select id="receiver"></select>
-<br><br>
+<select id="receiver"></select><br><br>
 
 <input id="msg" placeholder="Type message">
 <button onclick="send()">Send</button>
@@ -66,6 +66,11 @@ const remoteAudio = document.getElementById("remoteAudio");
 const ringtone = document.getElementById("ringtone");
 const walletEl = document.getElementById("wallet");
 
+/* ================= STATE ================= */
+let CALL_STATE = "IDLE";
+let callStartTime = null;
+let callTimer = null;
+
 /* ================= WALLET ================= */
 async function loadWallet(){
   const res = await fetch(API + "/users/wallet/" + userId);
@@ -108,9 +113,10 @@ async function loadHistory(rid){
   const msgs = await res.json();
 
   msgs.forEach(m=>{
-    chat.innerHTML += m.senderId === userId
-      ? `<p><b>You:</b> ${m.text}</p>`
-      : `<p><b>Them:</b> ${m.text}</p>`;
+    chat.innerHTML +=
+      m.senderId === userId
+        ? `<p><b>You:</b> ${m.text}</p>`
+        : `<p><b>Them:</b> ${m.text}</p>`;
   });
 }
 
@@ -151,35 +157,9 @@ socket.on("typing",d=>{
 });
 socket.on("stopTyping",()=> typingEl.innerText="");
 
-/* ================= WEBRTC ================= */
-let pc, localStream;
-const RTC_CONFIG = { iceServers:[{urls:"stun:stun.l.google.com:19302"}] };
-
-async function initWebRTC(){
-  pc = new RTCPeerConnection(RTC_CONFIG);
-
-  pc.onicecandidate = e=>{
-    if(e.candidate){
-      socket.emit("webrtc-ice",{ to:receiverSelect.value, candidate:e.candidate });
-    }
-  };
-
-  pc.ontrack = e=>{
-    remoteAudio.srcObject = e.streams[0];
-  };
-
-  localStream = await navigator.mediaDevices.getUserMedia({audio:true});
-  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
-}
-
-/* ================= CALL + TIMER ================= */
-let callStartTime = null;
-let callTimer = null;
-
+/* ================= TIMER ================= */
 function startTimer(){
   callStartTime = Date.now();
-  stopTimer();
-
   callTimer = setInterval(()=>{
     const s = Math.floor((Date.now()-callStartTime)/1000);
     const m = Math.floor(s/60);
@@ -203,7 +183,9 @@ async function startCall(){
     return;
   }
 
-  callStatus.innerText = "Calling...";
+  CALL_STATE="CALLING";
+  callStatus.innerText="Calling...";
+
   socket.emit("callUser",{
     callerId:userId,
     callerName:userName,
@@ -212,6 +194,7 @@ async function startCall(){
 }
 
 socket.on("incomingCall",async d=>{
+  CALL_STATE="RINGING";
   ringtone.play();
 
   const ok = confirm(`📞 ${d.callerName} is calling`);
@@ -219,58 +202,45 @@ socket.on("incomingCall",async d=>{
 
   if(!ok){
     socket.emit("rejectCall",{ callerId:d.callerId });
+    CALL_STATE="IDLE";
     return;
   }
 
   socket.emit("acceptCall",{ callerId:d.callerId });
+  CALL_STATE="CONNECTED";
   callStatus.innerText="Call connected";
   startTimer();
 });
 
-socket.on("callAccepted",async ()=>{
-  await initWebRTC();
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  socket.emit("webrtc-offer",{ to:receiverSelect.value, offer });
+socket.on("callAccepted",()=>{
+  CALL_STATE="CONNECTED";
   callStatus.innerText="Call connected";
   startTimer();
 });
-
-socket.on("webrtc-offer",async offer=>{
-  await initWebRTC();
-  await pc.setRemoteDescription(offer);
-  const ans = await pc.createAnswer();
-  await pc.setLocalDescription(ans);
-  socket.emit("webrtc-answer",{ to:receiverSelect.value, answer:ans });
-});
-
-socket.on("webrtc-answer",a=> pc.setRemoteDescription(a));
-socket.on("webrtc-ice",c=> c && pc.addIceCandidate(c));
 
 /* ================= END CALL + BILLING ================= */
-async function endCall(){
-  if(callStartTime){
-    const durationMs = Date.now()-callStartTime;
-    const minutes = Math.ceil(durationMs/60000);
-    const cost = minutes * RATE_PER_MIN;
+function endCall(){
+  if(!callStartTime) return;
 
-    callCostEl.innerText = `💸 Debited ₹${cost}`;
+  const durationMs = Date.now() - callStartTime;
+  const minutes = Math.ceil(durationMs / 60000);
+  const cost = minutes * RATE_PER_MIN;
 
-    await fetch(API + "/users/wallet/deduct",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ userId, amount: cost })
-    });
-
+  fetch(API + "/users/wallet/deduct",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ userId, amount:cost })
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    callCostEl.innerText = `Debited ₹${cost} (${minutes} min × ₹5)`;
     loadWallet();
-  }
+  });
 
   stopTimer();
+  callStartTime=null;
+  CALL_STATE="IDLE";
   callStatus.innerText="Call ended";
-
-  if(pc) pc.close();
-  if(localStream) localStream.getTracks().forEach(t=>t.stop());
-  pc=null; localStream=null;
 
   socket.emit("endCall",{ otherUserId:receiverSelect.value });
 }

@@ -2,78 +2,87 @@
 <html>
 <head>
   <title>Wallet Recharge</title>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    .box { max-width: 400px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
-    button { padding: 10px; width: 100%; margin-top: 10px; }
-    input { width: 100%; padding: 10px; margin-top: 10px; }
-  </style>
 </head>
 <body>
 
-<div class="box">
-  <h2>💰 Wallet</h2>
+<h2>💰 Wallet Recharge</h2>
 
-  <p><b>Balance:</b> ₹<span id="balance">0</span></p>
+<p id="balance">Loading...</p>
 
-  <hr>
+<input
+  type="number"
+  id="amount"
+  placeholder="Minimum ₹50"
+  min="50"
+/>
+<button onclick="recharge()">Recharge</button>
 
-  <h3>Recharge</h3>
-  <input type="number" id="amount" placeholder="Enter amount (₹)">
-  <button onclick="recharge()">➕ Recharge Wallet</button>
+<br><br>
+<button onclick="goBack()">⬅ Back to Chat</button>
 
-  <p id="msg" style="color:green;"></p>
-
-  <hr>
-  <button onclick="goBack()">⬅ Back</button>
-</div>
+<p id="msg" style="font-weight:bold;"></p>
 
 <script>
 const API = "https://bappa-s-web.onrender.com";
+const MIN_RECHARGE = 50;
+
 const userId = localStorage.getItem("userId");
+const msg = document.getElementById("msg");
 
 if (!userId) {
-  alert("Login required");
+  alert("Please login first");
   location.href = "/";
 }
 
-// 🔹 Load wallet balance
+// 🔹 load wallet balance
 async function loadWallet() {
-  const res = await fetch(API + "/users/wallet/" + userId);
-  const data = await res.json();
-  document.getElementById("balance").innerText = data.wallet;
+  try {
+    const res = await fetch(API + "/users/wallet/" + userId);
+    const data = await res.json();
+
+    document.getElementById("balance").innerText =
+      "Current Balance: ₹" + data.wallet;
+  } catch (err) {
+    document.getElementById("balance").innerText =
+      "Failed to load wallet";
+  }
 }
 
-loadWallet();
-
-// 🔹 Recharge wallet (DEMO)
+// 🔹 recharge wallet (MIN ₹50 enforced)
 async function recharge() {
-  const amt = Number(document.getElementById("amount").value);
-  if (!amt || amt <= 0) return alert("Enter valid amount");
+  const amount = Number(document.getElementById("amount").value);
 
-  // ⚠️ DEMO: direct add (real app = payment gateway)
-  const res = await fetch(API + "/users/wallet/deduct", {
+  if (!amount || amount < MIN_RECHARGE) {
+    msg.innerText = `❌ Minimum recharge is ₹${MIN_RECHARGE}`;
+    return;
+  }
+
+  const res = await fetch(API + "/users/wallet/recharge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       userId,
-      amount: -amt   // 👈 negative means ADD
+      amount
     })
   });
 
   const data = await res.json();
+
   if (data.error) {
-    alert(data.error);
+    msg.innerText = "❌ " + data.error;
   } else {
-    document.getElementById("msg").innerText = "Recharge successful!";
+    msg.innerText = "✅ " + (data.message || "Recharge successful!");
     document.getElementById("amount").value = "";
     loadWallet();
   }
 }
 
-function goBack(){
-  location.href = "feed.html";
+function goBack() {
+  location.href = "chat.html";
 }
+
+// init
+loadWallet();
 </script>
 
 </body>
