@@ -1,0 +1,161 @@
+/* =====================
+   GLOBAL
+===================== */
+* {
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 10px;
+  background: #f2f2f2;
+  color: #222;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 15px 0;
+}
+
+button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+/* =====================
+   HEADER / INFO
+===================== */
+#me {
+  margin: 5px 0;
+}
+
+#wallet {
+  font-weight: bold;
+  color: #0a7d00;
+}
+
+/* =====================
+   SELECT USER
+===================== */
+select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+/* =====================
+   CHAT BOX
+===================== */
+#chat {
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  height: 250px;
+  overflow-y: auto;
+}
+
+#chat p {
+  margin: 6px 0;
+}
+
+#chat b {
+  color: #0077ff;
+}
+
+/* =====================
+   MESSAGE INPUT
+===================== */
+#msg {
+  width: 75%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+button[onclick="send()"] {
+  background: #0077ff;
+  color: #fff;
+}
+
+/* =====================
+   TYPING
+===================== */
+#typing {
+  margin-top: 5px;
+  color: #777;
+  font-style: italic;
+}
+
+/* =====================
+   CALL CONTROLS
+===================== */
+button[onclick="startCall()"] {
+  background: #28a745;
+  color: #fff;
+}
+
+button[onclick="endCall()"] {
+  background: #dc3545;
+  color: #fff;
+}
+
+#callStatus {
+  font-size: 16px;
+}
+
+#callTimer {
+  font-size: 14px;
+  color: #333;
+}
+
+#callCost {
+  font-size: 15px;
+}
+
+/* =====================
+   WALLET BUTTON
+===================== */
+button[onclick*="wallet"] {
+  background: #ff9800;
+  color: #fff;
+}
+
+/* =====================
+   LOGOUT
+===================== */
+button[onclick="logout()"] {
+  background: #555;
+  color: #fff;
+}
+
+/* =====================
+   AUDIO (HIDDEN)
+===================== */
+audio {
+  display: none;
+}
+
+/* =====================
+   MOBILE FIX
+===================== */
+@media (max-width: 600px) {
+  #msg {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  button {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+}
