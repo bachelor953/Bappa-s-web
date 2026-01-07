@@ -46,6 +46,44 @@ module.exports = function (server) {
     });
 
     // =========================
+    // 📞 CALL SIGNALING
+    // =========================
+
+    // call request
+    socket.on("callUser", ({ callerId, callerName, receiverId }) => {
+      const receiverSocket = onlineUsers[receiverId];
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("incomingCall", {
+          callerId,
+          callerName
+        });
+      }
+    });
+
+    // call accepted
+    socket.on("acceptCall", ({ callerId, receiverId }) => {
+      const callerSocket = onlineUsers[callerId];
+      if (callerSocket) {
+        io.to(callerSocket).emit("callAccepted");
+      }
+    });
+
+    // call rejected
+    socket.on("rejectCall", ({ callerId }) => {
+      const callerSocket = onlineUsers[callerId];
+      if (callerSocket) {
+        io.to(callerSocket).emit("callRejected");
+      }
+    });
+
+    // call ended
+    socket.on("endCall", ({ otherUserId }) => {
+      const otherSocket = onlineUsers[otherUserId];
+      if (otherSocket) {
+        io.to(otherSocket).emit("callEnded");
+      }
+    });
+    // =========================
     // 💬 SEND MESSAGE (FIXED)
     // =========================
     socket.on(

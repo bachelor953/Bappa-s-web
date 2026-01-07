@@ -17,7 +17,14 @@
 <button onclick="send()">Send</button>
 
 <hr>
+<hr>
 
+<button onclick="startCall()">📞 Call</button>
+<button onclick="endCall()">❌ End Call</button>
+
+<p id="callStatus" style="font-weight:bold;color:green;"></p>
+
+<hr>
 <div id="chat"></div>
 <p id="typing" style="font-style:italic;color:gray;"></p>
 
@@ -158,6 +165,61 @@
     localStorage.clear();
     location.href = "/";
   }
+
+  const callStatus = document.getElementById("callStatus");
+
+  // start call
+  function startCall() {
+    const receiverId = receiverSelect.value;
+    if (!receiverId) return;
+
+    callStatus.innerText = "Calling...";
+
+    socket.emit("callUser", {
+      callerId: userId,
+      callerName: userName,
+      receiverId
+    });
+  }
+
+  // receive incoming call
+  socket.on("incomingCall", (data) => {
+    const ok = confirm(`📞 ${data.callerName} is calling. Accept?`);
+    if (ok) {
+      socket.emit("acceptCall", {
+        callerId: data.callerId,
+        receiverId: userId
+      });
+      callStatus.innerText = "Call connected";
+    } else {
+      socket.emit("rejectCall", {
+        callerId: data.callerId
+      });
+    }
+  });
+
+  // call accepted
+  socket.on("callAccepted", () => {
+    callStatus.innerText = "Call connected";
+  });
+
+  // call rejected
+  socket.on("callRejected", () => {
+    callStatus.innerText = "Call rejected";
+  });
+
+  // end call
+  function endCall() {
+    const receiverId = receiverSelect.value;
+    socket.emit("endCall", { otherUserId: receiverId });
+    callStatus.innerText = "Call ended";
+  }
+
+  // receive end call
+  socket.on("callEnded", () => {
+    callStatus.innerText = "Call ended";
+  });
+
 </script>
 
 </body>
