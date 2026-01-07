@@ -7,6 +7,11 @@
 
 <h2 id="name">Loading...</h2>
 
+<img id="avatar" width="120" style="border-radius:50%"><br><br>
+
+<input type="file" id="file">
+<button onclick="upload()">Upload Photo</button>
+
 <script>
 const API = "https://bappa-s-web.onrender.com";
 const params = new URLSearchParams(location.search);
@@ -15,7 +20,28 @@ const uid = params.get("uid");
 async function loadProfile(){
   const res = await fetch(API + "/users/profile/" + uid);
   const user = await res.json();
-  document.getElementById("name").innerText = "👤 " + user.name;
+
+  document.getElementById("name").innerText = user.name;
+  document.getElementById("avatar").src = API + user.avatar;
+}
+
+async function upload(){
+  const file = document.getElementById("file").files[0];
+  if (!file) return alert("Select image");
+
+  const fd = new FormData();
+  fd.append("avatar", file);
+  fd.append("userId", uid);
+
+  const res = await fetch(API + "/users/avatar", {
+    method: "POST",
+    body: fd
+  });
+
+  const data = await res.json();
+  if (data.avatar) {
+    document.getElementById("avatar").src = API + data.avatar;
+  }
 }
 
 loadProfile();
