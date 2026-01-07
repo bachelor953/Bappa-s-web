@@ -2,151 +2,84 @@ const { Server } = require("socket.io");
 const Message = require("../models/Message");
 
 module.exports = function (server) {
-  const io = new Server(server, {
-    cors: { origin: "*" }
-  });
-
-  // userId -> socketId
+  const io = new Server(server,{ cors:{origin:"*"} });
   const onlineUsers = {};
 
-  io.on("connection", (socket) => {
-    console.log("Socket connected:", socket.id);
+  io.on("connection", socket => {
 
-    // =========================
-    // 🔹 USER ONLINE REGISTER
-    // =========================
-    socket.on("addUser", (userId) => {
-      onlineUsers[userId] = socket.id;
-      console.log("Online users:", onlineUsers);
-
-      // broadcast updated online list
-      io.emit("onlineUsers", Object.keys(onlineUsers));
+    socket.on("addUser", userId=>{
+      onlineUsers[userId]=socket.id;
+      io.emit("onlineUsers",Object.keys(onlineUsers));
     });
 
-    // frontend explicitly ask for online users
-    socket.on("getOnlineUsers", () => {
-      socket.emit("onlineUsers", Object.keys(onlineUsers));
+    socket.on("getOnlineUsers",()=>{
+      socket.emit("onlineUsers",Object.keys(onlineUsers));
     });
 
-    // =========================
-    // ✍️ TYPING INDICATOR
-    // =========================
-    socket.on("typing", ({ senderName, receiverId }) => {
-      const receiverSocket = onlineUsers[receiverId];
-      if (receiverSocket) {
-        io.to(receiverSocket).emit("typing", { senderName });
-      }
+    socket.on("typing",({senderName,receiverId})=>{
+      const s=onlineUsers[receiverId];
+      if(s) io.to(s).emit("typing",{senderName});
     });
 
-    socket.on("stopTyping", ({ receiverId }) => {
-      const receiverSocket = onlineUsers[receiverId];
-      if (receiverSocket) {
-        io.to(receiverSocket).emit("stopTyping");
-      }
+    socket.on("stopTyping",({receiverId})=>{
+      const s=onlineUsers[receiverId];
+      if(s) io.to(s).emit("stopTyping");
     });
 
-    // =========================
-    // 📞 CALL SIGNALING
-    // =========================
-
-    // call request
-    socket.on("callUser", ({ callerId, callerName, receiverId }) => {
-      const receiverSocket = onlineUsers[receiverId];
-      if (receiverSocket) {
-        io.to(receiverSocket).emit("incomingCall", {
-          callerId,
-          callerName
-        });
-      }
+    socket.on("callUser",({callerId,callerName,receiverId})=>{
+      const s=onlineUsers[receiverId];
+      if(s) io.to(s).emit("incomingCall",{callerId,callerName});
     });
 
-    // call accepted
-    socket.on("acceptCall", ({ callerId, receiverId }) => {
-      const callerSocket = onlineUsers[callerId];
-      if (callerSocket) {
-        io.to(callerSocket).emit("callAccepted");
-      }
+    socket.on("acceptCall",({callerId})=>{
+      const s=onlineUsers[callerId];
+      if(s) io.to(s).emit("callAccepted");
     });
 
-    // call rejected
-    socket.on("rejectCall", ({ callerId }) => {
-      const callerSocket = onlineUsers[callerId];
-      if (callerSocket) {
-        io.to(callerSocket).emit("callRejected");
-      }
+    socket.on("rejectCall",({callerId})=>{
+      const s=onlineUsers[callerId];
+      if(s) io.to(s).emit("callRejected");
     });
 
-    // call ended
-    socket.on("endCall", ({ otherUserId }) => {
-      const otherSocket = onlineUsers[otherUserId];
-      if (otherSocket) {
-        io.to(otherSocket).emit("callEnded");
-      }
+    socket.on("endCall",({otherUserId})=>{
+      const s=onlineUsers[otherUserId];
+      if(s) io.to(s).emit("callEnded");
     });
 
-    // =========================
-    // 🔁 WEBRTC SIGNALING
-    // =========================
-    socket.on("webrtc-offer", ({ to, offer }) => {
-      const s = onlineUsers[to];
-      if (s) io.to(s).emit("webrtc-offer", offer);
+    socket.on("webrtc-offer",({to,offer})=>{
+      const s=onlineUsers[to];
+      if(s) io.to(s).emit("webrtc-offer",offer);
     });
 
-    socket.on("webrtc-answer", ({ to, answer }) => {
-      const s = onlineUsers[to];
-      if (s) io.to(s).emit("webrtc-answer", answer);
-     });
-
-    socket.on("webrtc-ice", ({ to, candidate }) => {
-      const s = onlineUsers[to];
-      if (s) io.to(s).emit("webrtc-ice", candidate);
+    socket.on("webrtc-answer",({to,answer})=>{
+      const s=onlineUsers[to];
+      if(s) io.to(s).emit("webrtc-answer",answer);
     });
-    // =========================
-    // 💬 SEND MESSAGE (FIXED)
-    // =========================
-    socket.on(
-      "sendMessage",
-      async ({ senderId, senderName, receiverId, text }) => {
-        try {
-          const receiverSocket = onlineUsers[receiverId];
 
-          // ✅ CORRECT STATUS LOGIC
-          const msg = new Message({
-            senderId,
-            receiverId,
-            text,
-            status: receiverSocket ? "delivered" : "sent"
-          });
+    socket.on("webrtc-ice",({to,candidate})=>{
+      const s=onlineUsers[to];
+      if(s) io.to(s).emit("webrtc-ice",candidate);
+    });
 
-          await msg.save();
+    socket.on("sendMessage",async d=>{
+      const msg=new Message({
+        senderId:d.senderId,
+        receiverId:d.receiverId,
+        text:d.text
+      });
+      await msg.save();
 
-          // send live message only if receiver online
-          if (receiverSocket) {
-            io.to(receiverSocket).emit("getMessage", {
-              senderId,
-              senderName,
-              text
-            });
-          }
-        } catch (err) {
-          console.log("Message send error:", err.message);
-        }
-      }
-    );
+      const s=onlineUsers[d.receiverId];
+      if(s) io.to(s).emit("getMessage",{
+        senderName:d.senderName,
+        text:d.text
+      });
+    });
 
-    // =========================
-    // 🔌 DISCONNECT
-    // =========================
-    socket.on("disconnect", () => {
-      for (const userId in onlineUsers) {
-        if (onlineUsers[userId] === socket.id) {
-          delete onlineUsers[userId];
-        }
-      }
-
-      // broadcast updated online list
-      io.emit("onlineUsers", Object.keys(onlineUsers));
-      console.log("User disconnected");
+    socket.on("disconnect",()=>{
+      for(const u in onlineUsers)
+        if(onlineUsers[u]===socket.id) delete onlineUsers[u];
+      io.emit("onlineUsers",Object.keys(onlineUsers));
     });
   });
 };

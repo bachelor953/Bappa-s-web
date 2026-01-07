@@ -10,7 +10,6 @@
 <hr>
 
 <select id="receiver"></select>
-
 <br><br>
 
 <input id="msg" placeholder="Type message">
@@ -22,14 +21,12 @@
 <button onclick="endCall()">❌ End Call</button>
 
 <p id="callStatus" style="font-weight:bold;color:green;"></p>
-<p id="callTimer" style="font-weight:bold;color:#444;"></p>
 
 <hr>
 
 <div id="chat"></div>
-<audio id="remoteAudio" autoplay></audio>
 
-<!-- 🔔 RINGTONE -->
+<audio id="remoteAudio" autoplay></audio>
 <audio id="ringtone" loop preload="auto">
   <source src="ringtone.mp3" type="audio/mpeg">
 </audio>
@@ -38,179 +35,266 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-  const API = "https://bappa-s-web.onrender.com";
-  const socket = io(API);
+/* =========================
+   BASIC SETUP
+========================= */
+const API = "https://bappa-s-web.onrender.com";
+const socket = io(API);
 
-  const userId = localStorage.getItem("userId");
-  const userName = localStorage.getItem("userName");
+const userId   = localStorage.getItem("userId");
+const userName = localStorage.getItem("userName");
 
-  if (!userId || !userName) {
-    alert("Please login first");
-    location.href = "/";
-  }
+if (!userId || !userName) {
+  alert("Please login first");
+  location.href = "/";
+}
 
-  document.getElementById("me").innerText = "You: " + userName;
+document.getElementById("me").innerText = "You: " + userName;
 
-  const receiverSelect = document.getElementById("receiver");
-  const chat = document.getElementById("chat");
-  const msgInput = document.getElementById("msg");
-  const typingEl = document.getElementById("typing");
-  const callStatus = document.getElementById("callStatus");
-  const callTimerEl = document.getElementById("callTimer");
-  const remoteAudio = document.getElementById("remoteAudio");
-  const ringtone = document.getElementById("ringtone");
+const receiverSelect = document.getElementById("receiver");
+const chat        = document.getElementById("chat");
+const msgInput    = document.getElementById("msg");
+const typingEl    = document.getElementById("typing");
+const callStatus  = document.getElementById("callStatus");
+const remoteAudio = document.getElementById("remoteAudio");
+const ringtone    = document.getElementById("ringtone");
 
-  let typingTimeout;
-  let ONLINE = [];
-  let CALL_ACTIVE = false;
-  let callInterval = null;
-  let callStartTime = null;
+/* =========================
+   CALL STATE + TIMER
+========================= */
+let CALL_STATE = "IDLE"; // IDLE | CALLING | RINGING | CONNECTED
+let callTimer = null;
+let callSeconds = 0;
 
-  // =========================
-  // ⏱ CALL TIMER
-  // =========================
-  function startCallTimer() {
-    callStartTime = Date.now();
-    callInterval = setInterval(() => {
-      const diff = Date.now() - callStartTime;
-      const sec = Math.floor(diff / 1000);
-      const min = Math.floor(sec / 60);
-      const s = sec % 60;
-      callTimerEl.innerText =
-        `⏱ Call time: ${String(min).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-    }, 1000);
-  }
+function startTimer(){
+  stopTimer();
+  callSeconds = 0;
+  callTimer = setInterval(()=>{
+    callSeconds++;
+    callStatus.innerText = `Call connected (${callSeconds}s)`;
+  },1000);
+}
 
-  function stopCallTimer() {
-    clearInterval(callInterval);
-    callInterval = null;
-    callTimerEl.innerText = "";
-  }
+function stopTimer(){
+  if(callTimer) clearInterval(callTimer);
+  callTimer = null;
+  callSeconds = 0;
+}
 
-  // =========================
-  // 🔌 ONLINE
-  // =========================
-  socket.emit("addUser", userId);
-  socket.emit("getOnlineUsers");
+/* =========================
+   SOCKET ONLINE
+========================= */
+socket.emit("addUser", userId);
+socket.emit("getOnlineUsers");
 
-  socket.on("onlineUsers", (list) => {
-    ONLINE = list;
-    loadUsers();
+let ONLINE = [];
+
+socket.on("onlineUsers", list => {
+  ONLINE = list;
+  loadUsers();
+});
+
+/* =========================
+   LOAD USERS
+========================= */
+async function loadUsers(){
+  const res = await fetch(API + "/users?me=" + userId);
+  const users = await res.json();
+  receiverSelect.innerHTML = "";
+
+  users.forEach(u=>{
+    const opt = document.createElement("option");
+    opt.value = u._id;
+    opt.textContent = `${ONLINE.includes(u._id) ? "🟢" : "⚪"} ${u.name}`;
+    receiverSelect.appendChild(opt);
   });
 
-  async function loadUsers() {
-    const res = await fetch(API + "/users?me=" + userId);
-    const users = await res.json();
+  if(receiverSelect.value) loadHistory(receiverSelect.value);
+}
 
-    receiverSelect.innerHTML = "";
-    users.forEach(u => {
-      const opt = document.createElement("option");
-      opt.value = u._id;
-      opt.textContent = `${ONLINE.includes(u._id) ? "🟢" : "⚪"} ${u.name}`;
-      receiverSelect.appendChild(opt);
-    });
-  }
+/* =========================
+   CHAT HISTORY
+========================= */
+async function loadHistory(receiverId){
+  typingEl.innerText = "";
+  const res = await fetch(API + "/chat/" + userId + "/" + receiverId);
+  const msgs = await res.json();
 
-  // =========================
-  // 💬 CHAT
-  // =========================
-  async function loadHistory(receiverId) {
-    const res = await fetch(API + "/chat/" + userId + "/" + receiverId);
-    const msgs = await res.json();
-    chat.innerHTML = "";
-    msgs.forEach(m => {
-      chat.innerHTML += `<p><b>${m.senderId === userId ? "You" : "Them"}:</b> ${m.text}</p>`;
-    });
-  }
+  chat.innerHTML = "";
+  msgs.forEach(m=>{
+    chat.innerHTML +=
+      m.senderId === userId
+      ? `<p><b>You:</b> ${m.text}</p>`
+      : `<p><b>Them:</b> ${m.text}</p>`;
+  });
+}
 
-  receiverSelect.onchange = () => loadHistory(receiverSelect.value);
+receiverSelect.onchange = ()=> loadHistory(receiverSelect.value);
 
-  function send() {
-    const text = msgInput.value;
-    if (!text) return;
+/* =========================
+   TYPING
+========================= */
+let typingTimeout;
+msgInput.addEventListener("input", ()=>{
+  const rid = receiverSelect.value;
+  if(!rid) return;
 
-    socket.emit("sendMessage", {
-      senderId: userId,
-      senderName: userName,
-      receiverId: receiverSelect.value,
-      text
-    });
+  socket.emit("typing",{ senderName:userName, receiverId:rid });
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(()=>{
+    socket.emit("stopTyping",{ receiverId:rid });
+  },1000);
+});
 
-    chat.innerHTML += `<p><b>You:</b> ${text}</p>`;
-    msgInput.value = "";
-  }
+socket.on("typing", d=>{
+  typingEl.innerText = `${d.senderName} is typing...`;
+});
+socket.on("stopTyping", ()=> typingEl.innerText="");
 
-  socket.on("getMessage", (data) => {
-    chat.innerHTML += `<p><b>${data.senderName}:</b> ${data.text}</p>`;
+/* =========================
+   SEND MESSAGE
+========================= */
+function send(){
+  const rid = receiverSelect.value;
+  const text = msgInput.value;
+  if(!text) return;
+
+  socket.emit("sendMessage",{
+    senderId:userId,
+    senderName:userName,
+    receiverId:rid,
+    text
   });
 
-  // =========================
-  // 📞 CALL + RINGTONE
-  // =========================
-  let pc, localStream;
+  socket.emit("stopTyping",{ receiverId:rid });
+  typingEl.innerText="";
+  chat.innerHTML += `<p><b>You:</b> ${text}</p>`;
+  msgInput.value="";
+}
 
-  async function startCall() {
-    callStatus.innerText = "Calling...";
-    socket.emit("callUser", {
-      callerId: userId,
-      callerName: userName,
-      receiverId: receiverSelect.value
-    });
-  }
+socket.on("getMessage", d=>{
+  typingEl.innerText="";
+  chat.innerHTML += `<p><b>${d.senderName}:</b> ${d.text}</p>`;
+});
 
-  socket.on("incomingCall", async (data) => {
-    try { await ringtone.play(); } catch(e){}
-    const ok = confirm(`📞 ${data.callerName} is calling. Accept?`);
-    ringtone.pause(); ringtone.currentTime = 0;
+/* =========================
+   WEBRTC
+========================= */
+let pc, localStream;
+const RTC_CONFIG = { iceServers:[{urls:"stun:stun.l.google.com:19302"}] };
 
-    if (!ok) {
-      socket.emit("rejectCall", { callerId: data.callerId });
-      return;
+async function initWebRTC(){
+  pc = new RTCPeerConnection(RTC_CONFIG);
+
+  pc.onicecandidate = e=>{
+    if(e.candidate){
+      socket.emit("webrtc-ice",{ to:receiverSelect.value, candidate:e.candidate });
     }
+  };
 
-    CALL_ACTIVE = true;
-    callStatus.innerText = "Call connected";
-    startCallTimer();
+  pc.ontrack = e=>{
+    remoteAudio.srcObject = e.streams[0];
+  };
+
+  localStream = await navigator.mediaDevices.getUserMedia({audio:true});
+  localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+}
+
+/* =========================
+   CALL LOGIC
+========================= */
+async function startCall(){
+  if(CALL_STATE!=="IDLE") return;
+
+  CALL_STATE="CALLING";
+  callStatus.innerText="Calling...";
+
+  socket.emit("callUser",{
+    callerId:userId,
+    callerName:userName,
+    receiverId:receiverSelect.value
   });
+}
 
-  socket.on("callAccepted", () => {
-    ringtone.pause(); ringtone.currentTime = 0;
-    CALL_ACTIVE = true;
-    callStatus.innerText = "Call connected";
-    startCallTimer();
-  });
+socket.on("incomingCall", async d=>{
+  CALL_STATE="RINGING";
+  ringtone.play();
 
-  socket.on("callRejected", () => {
-    ringtone.pause(); ringtone.currentTime = 0;
-    callStatus.innerText = "Call rejected";
-  });
+  const ok = confirm(`📞 ${d.callerName} is calling`);
+  ringtone.pause(); ringtone.currentTime=0;
 
-  function endCall() {
-    ringtone.pause(); ringtone.currentTime = 0;
-    CALL_ACTIVE = false;
-    stopCallTimer();
-    socket.emit("endCall", { otherUserId: receiverSelect.value });
-    callStatus.innerText = "Call ended";
+  if(!ok){
+    socket.emit("rejectCall",{ callerId:d.callerId });
+    CALL_STATE="IDLE";
+    return;
   }
 
-  socket.on("callEnded", () => {
-    ringtone.pause(); ringtone.currentTime = 0;
-    CALL_ACTIVE = false;
-    stopCallTimer();
-    callStatus.innerText = "Call ended";
-  });
+  socket.emit("acceptCall",{ callerId:d.callerId });
+  CALL_STATE="CONNECTED";
+  callStatus.innerText="Call connected";
+  startTimer();
+});
 
-  function logout() {
-    if (CALL_ACTIVE) {
-      alert("End call first");
-      return;
-    }
-    ringtone.pause(); ringtone.currentTime = 0;
-    socket.disconnect();
-    localStorage.clear();
-    location.href = "/";
-  }
+socket.on("callAccepted", async ()=>{
+  CALL_STATE="CONNECTED";
+  await initWebRTC();
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit("webrtc-offer",{ to:receiverSelect.value, offer });
+  startTimer();
+});
+
+socket.on("callRejected", ()=>{
+  CALL_STATE="IDLE";
+  callStatus.innerText="Call rejected";
+});
+
+/* =========================
+   WEBRTC SIGNALING
+========================= */
+socket.on("webrtc-offer", async offer=>{
+  await initWebRTC();
+  await pc.setRemoteDescription(offer);
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket.emit("webrtc-answer",{ to:receiverSelect.value, answer });
+});
+
+socket.on("webrtc-answer", a=> pc.setRemoteDescription(a));
+socket.on("webrtc-ice", c=> c && pc.addIceCandidate(c));
+
+/* =========================
+   END CALL
+========================= */
+function endCall(){
+  CALL_STATE="IDLE";
+  stopTimer();
+  callStatus.innerText="Call ended";
+
+  if(pc) pc.close();
+  if(localStream) localStream.getTracks().forEach(t=>t.stop());
+  pc=null; localStream=null;
+
+  socket.emit("endCall",{ otherUserId:receiverSelect.value });
+}
+
+socket.on("callEnded", ()=>{
+  CALL_STATE="IDLE";
+  stopTimer();
+  callStatus.innerText="Call ended";
+});
+
+/* =========================
+   LOGOUT
+========================= */
+function logout(){
+  ringtone.pause(); ringtone.currentTime=0;
+  socket.disconnect();
+  localStorage.clear();
+  location.href="/";
+}
+
+loadUsers();
 </script>
-
 </body>
 </html>
