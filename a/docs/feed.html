@@ -42,7 +42,7 @@
 
 <h2>Create Post</h2>
 <input id="postText" placeholder="What's on your mind?">
-<button onclick="createPost()">Post</button>
+<button onclick="handlePost()">Post</button>
 
 <br><br>
 <button onclick="goChat()">💬 Open Personal Chat</button>
@@ -97,6 +97,24 @@ async function loadFeed(){
       </div>
     `;
   });
+}
+
+/* ================= CREATE POST (FIXED) ================= */
+async function handlePost(){
+  const text = postText.value.trim();
+  if (!text) return;
+
+  await fetch(API + "/post", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({
+      userId,
+      text
+    })
+  });
+
+  postText.value = "";
+  loadFeed();       // ✅ IMPORTANT FIX
 }
 
 /* ================= OPEN PROFILE ================= */
