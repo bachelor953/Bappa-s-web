@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bappa Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="chat-box">
+  <h2>🔥 Bappa Live Chat</h2>
+
+  <ul id="messages"></ul>
+
+  <div class="input-box">
+    <input id="msg" type="text" placeholder="Type message..." />
+    <button onclick="sendMsg()">Send</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
